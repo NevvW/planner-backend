@@ -1,0 +1,157 @@
+services:
+  pg_test:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${TEST_POSTGRES_DB}
+      POSTGRES_USER: ${TEST_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${TEST_POSTGRES_PASSWORD}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${TEST_POSTGRES_USER} -d ${TEST_POSTGRES_DB}" ]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    tmpfs:
+      - /var/lib/postgresql/data:rw
+    profiles: [ "test" ]
+    networks:
+      - backend
+
+  flyway_test:
+    image: flyway/flyway:10
+    depends_on:
+      pg_test:
+        condition: service_healthy
+    command:
+      [
+        "-url=jdbc:postgresql://pg_test:5432/${TEST_POSTGRES_DB}",
+        "-user=${TEST_POSTGRES_USER}",
+        "-password=${TEST_POSTGRES_PASSWORD}",
+        "-locations=filesystem:/flyway/sql",
+        "migrate"
+      ]
+    volumes:
+      - ./migrations:/flyway/sql
+    profiles: [ "test" ]
+    networks:
+      - backend
+
+  tests:
+    image: golang:1.25.6
+    working_dir: /src
+    volumes:
+      - .:/src
+    environment:
+      GOMODCACHE: ${GOMODCACHE}
+      GOCACHE: ${GOCACHE}
+      TEST_DATABASE_DSN: postgres://${TEST_POSTGRES_USER}:${TEST_POSTGRES_PASSWORD}@pg_test:5432/${TEST_POSTGRES_DB}?sslmode=disable
+    depends_on:
+      pg_test:
+        condition: service_healthy
+      flyway_test:
+        condition: service_completed_successfully
+    command: [ "go", "test", "./...", "-count=1" ]
+    profiles: [ "test" ]
+    networks:
+      - backend
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${MAIN_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${MAIN_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${MAIN_POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MAIN_POSTGRES_USER} -d ${MAIN_POSTGRES_DB}"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  flyway:
+    image: flyway/flyway:10
+    depends_on:
+      db:
+        condition: service_healthy
+    command:
+      [
+        "-url=jdbc:postgresql://db:5432/${MAIN_POSTGRES_DB}",
+        "-user=${MAIN_POSTGRES_USER}",
+        "-password=${MAIN_POSTGRES_PASSWORD}",
+        "-locations=filesystem:/flyway/sql",
+        "migrate"
+      ]
+    volumes:
+      - ./migrations:/flyway/sql
+    networks:
+      - backend
+
+  auth:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: auth
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    environment:
+      POSTGRES_DSN: postgres://${MAIN_POSTGRES_USER}:${MAIN_POSTGRES_PASSWORD}@db:5432/${MAIN_POSTGRES_DB}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: auth_service
+      ACCESS_TTL: 15m
+      REFRESH_TTL: 720h
+      ABSOLUTE_TTL: 2160h
+      CORS_ALLOWED_ORIGINS: https://alcobank.tech,http://localhost:4200
+      GRPC_ADDR: 0.0.0.0:50051
+      BFF_ADDR: 0.0.0.0:8080
+    networks:
+      backend: {}
+      web:
+        aliases:
+          - backend
+
+  todo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: todo
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
+    ports:
+      - "8081:8081"
+    environment:
+      POSTGRES_DSN: postgres://${MAIN_POSTGRES_USER}:${MAIN_POSTGRES_PASSWORD}@db:5432/${MAIN_POSTGRES_DB}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: auth_service
+      TODO_GRPC_ADDR: 0.0.0.0:50052
+      TODO_HTTP_ADDR: 0.0.0.0:8081
+    networks:
+      backend: {}
+      web:
+        aliases:
+          - todo-backend
+
+networks:
+  backend:
+    driver: bridge
+
+  web:
+    external: true
+    name: web
+
+volumes:
+  pgdata:

@@ -1,0 +1,205 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Profile Service API",
+    "version": "v1"
+  },
+  "basePath": "/",
+  "paths": {
+    "/user/{login}": {
+      "get": {
+        "summary": "Get public profile by login",
+        "parameters": [
+          {
+            "name": "login",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/PublicProfile"
+            }
+          },
+          "403": {
+            "description": "Profile is private",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/user/me/settings": {
+      "get": {
+        "summary": "Get current user profile settings",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "type": "string",
+            "description": "Bearer access token"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/ProfileSettings"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update current user profile settings",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "type": "string",
+            "description": "Bearer access token"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateProfileSettingsRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/ProfileSettings"
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "PublicProfile": {
+      "type": "object",
+      "required": [
+        "UserID",
+        "Login",
+        "ClosedTasksThisMonth"
+      ],
+      "properties": {
+        "UserID": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "Login": {
+          "type": "string"
+        },
+        "ProfileName": {
+          "type": "string",
+          "x-nullable": true
+        },
+        "Description": {
+          "type": "string",
+          "x-nullable": true
+        },
+        "AvatarURL": {
+          "type": "string",
+          "x-nullable": true
+        },
+        "ClosedTasksThisMonth": {
+          "type": "integer"
+        }
+      }
+    },
+    "ProfileSettings": {
+      "type": "object",
+      "required": [
+        "UserID",
+        "Login",
+        "IsPublic"
+      ],
+      "properties": {
+        "UserID": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "Login": {
+          "type": "string"
+        },
+        "ProfileName": {
+          "type": "string",
+          "x-nullable": true
+        },
+        "Description": {
+          "type": "string",
+          "x-nullable": true
+        },
+        "AvatarURL": {
+          "type": "string",
+          "x-nullable": true
+        },
+        "IsPublic": {
+          "type": "boolean"
+        }
+      }
+    },
+    "UpdateProfileSettingsRequest": {
+      "type": "object",
+      "properties": {
+        "profileName": {
+          "type": "string",
+          "x-nullable": true
+        },
+        "description": {
+          "type": "string",
+          "x-nullable": true
+        },
+        "avatarUrl": {
+          "type": "string",
+          "x-nullable": true
+        },
+        "isPublic": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

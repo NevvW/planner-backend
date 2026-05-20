@@ -1,0 +1,122 @@
+name: Quality checker
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+
+env:
+  GOMODCACHE: /home/runner/.cache/gomod
+  GOCACHE: /home/runner/.cache/go-build
+  GOFLAGS: -modcacherw
+
+jobs:
+  download-libs:
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Download libs
+        run: go mod download -x
+
+  build:
+    runs-on: [self-hosted, linux, x64]
+    needs: download-libs
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Download libs
+        run: go mod download -x
+
+      - name: Build
+        run: go build -v ./...
+
+  tests:
+    runs-on: [self-hosted, linux, x64]
+    needs: build
+    env:
+      TEST_POSTGRES_DB: ${{ secrets.TEST_POSTGRES_DB }}
+      TEST_POSTGRES_USER: ${{ secrets.TEST_POSTGRES_USER }}
+      TEST_POSTGRES_PASSWORD: ${{ secrets.TEST_POSTGRES_PASSWORD }}
+      
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Download libs
+        run: go mod download -x
+
+      - name: Build
+        run: go build -v ./...
+
+      - name: Run tests
+        run: docker compose -p todo-test --profile test up --abort-on-container-exit --exit-code-from tests tests
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -p todo-test --profile test down -v --remove-orphans
+
+  
+  detect-modules:
+    name: Detect Go modules
+    runs-on: [self-hosted, linux, x64]
+    outputs:
+      modules: ${{ steps.set-modules.outputs.modules }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - id: set-modules
+        run: echo "modules=$(go list -m -json | jq -s '.' | jq -c '[.[].Dir]')" >> $GITHUB_OUTPUT
+
+  golangci-lint:
+    name: linter
+    needs: detect-modules
+    runs-on: [self-hosted, linux, x64]
+    strategy:
+      matrix:
+        modules: ${{ fromJSON(needs.detect-modules.outputs.modules) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: golangci-lint ${{ matrix.modules }}
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.10
+          working-directory: ${{ matrix.modules }}
+
+  deploy:
+    name: Deploy
+    runs-on: [self-hosted, linux, x64, prod-vps]
+    needs: [tests, golangci-lint]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    steps:
+      - name: Deploy
+        shell: bash
+        run: |
+          cd "/home/runner/${GITHUB_REPOSITORY#*/}"
+          git fetch origin
+          git reset --hard "$GITHUB_SHA"
+          docker compose up -d --build

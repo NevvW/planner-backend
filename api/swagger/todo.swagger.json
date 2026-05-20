@@ -1,0 +1,126 @@
+{
+  "swagger": "2.0",
+  "info": {"title": "Todo Service API", "version": "v1"},
+  "basePath": "/",
+  "paths": {
+    "/todo/{userId}": {
+      "post": {
+        "summary": "Bulk sync todo events",
+        "parameters": [
+          {"name":"userId","in":"path","required":true,"type":"string"},
+          {"name":"body","in":"body","required":true,"schema":{"type":"object","properties":{"changes":{"type":"array","items":{"$ref":"#/definitions/TodoSyncEvent"}}}}}
+        ],
+        "responses": {"200": {"description": "OK"}}
+      },
+      "get": {
+        "summary": "List todo tasks",
+        "parameters": [
+          {"name":"userId","in":"path","required":true,"type":"string"},
+          {"name":"limit","in":"query","type":"integer"},
+          {"name":"cursor","in":"query","type":"string"},
+          {"name":"includeDeleted","in":"query","type":"boolean"}
+        ],
+        "responses": {"200": {"description": "OK"}}
+      }
+    }
+  },
+  "definitions": {
+    "TaskInfo": {
+      "type": "object",
+      "required": ["id", "title", "status", "createdAt", "updatedAt"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "start": {
+          "type": "integer",
+          "format": "int64",
+          "x-nullable": true
+        },
+        "deadline": {
+          "type": "integer",
+          "format": "int64",
+          "x-nullable": true
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "done"]
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["Важно", "Не важно"],
+          "x-nullable": true
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "type": {
+          "type": "string",
+          "enum": ["Задача"],
+          "x-nullable": true
+        },
+        "taskDoneTime": {
+          "type": "integer",
+          "format": "int64",
+          "x-nullable": true
+        },
+        "createdAt": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "updatedAt": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "deletedAt": {
+          "type": "integer",
+          "format": "int64",
+          "x-nullable": true
+        },
+        "version": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "TodoSyncEvent": {
+      "type": "object",
+      "required": ["id", "createdAt", "entity", "entityId", "type", "payload"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "entity": {
+          "type": "string",
+          "enum": ["todo-task"]
+        },
+        "entityId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["create", "update", "delete"]
+        },
+        "payload": {
+          "$ref": "#/definitions/TaskInfo"
+        }
+      }
+    }
+  }
+}

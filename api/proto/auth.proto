@@ -1,0 +1,125 @@
+syntax = "proto3";
+
+package auth.v1;
+
+option go_package = "auth_service/internal/grpc/pb/v1;pbv1";
+
+import "google/api/annotations.proto";
+import "validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+service AuthService {
+  rpc Register(RegisterRequest) returns (RegisterResponse) {
+    option (google.api.http) = {
+      post: "/v1/register"
+      body: "*"
+    };
+  }
+
+  rpc Login(LoginRequest) returns (LoginResponse) {
+    option (google.api.http) = {
+      post: "/v1/login"
+      body: "*"
+    };
+  }
+
+  rpc Refresh(RefreshRequest) returns (RefreshResponse) {
+    option (google.api.http) = {
+      post: "/v1/refresh"
+      body: ""
+    };
+  }
+
+  rpc Logout(LogoutRequest) returns (LogoutResponse) {
+    option (google.api.http) = {
+      post: "/v1/logout"
+      body: ""
+    };
+  }
+
+  rpc LogoutAll(LogoutAllRequest) returns (LogoutAllResponse) {
+    option (google.api.http) = {
+      post: "/v1/logout_all"
+      body: ""
+    };
+  }
+
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse) {
+    option (google.api.http) = {
+      get: "/v1/sessions"
+    };
+  }
+
+  rpc Health(HealthRequest) returns (HealthResponse) {
+    option (google.api.http) = {
+      get: "/v1/health"
+    };
+  }
+}
+
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+}
+
+message RegisterRequest{
+  string email = 1 [(validate.rules).string = {email: true, max_len: 254}];
+  string password = 2 [(validate.rules).string = {min_len: 8, max_len: 72}];
+  string login = 3 [(validate.rules).string = {min_len: 3, max_len: 32, pattern: "^[A-Za-z0-9_\\-.]+$"}];
+}
+
+message RegisterResponse {
+  string access_token = 1;
+  string user_id = 2;
+  string login = 3;
+  string email = 4;
+  optional string profile_name = 5;
+  optional string avatar_url = 6;
+}
+
+message LoginRequest{
+  string email = 1 [(validate.rules).string = {email: true, max_len: 254}];
+  string password = 2 [(validate.rules).string = {min_len: 1, max_len: 72}];
+}
+
+message LoginResponse{
+  string access_token = 1;
+  string user_id = 2;
+  string login = 3;
+  string email = 4;
+  optional string profile_name = 5;
+  optional string avatar_url = 6;
+}
+
+message RefreshRequest{
+}
+
+message RefreshResponse {
+  string access_token = 1;
+}
+
+message LogoutRequest {
+}
+
+message LogoutResponse {}
+
+message LogoutAllRequest {
+}
+message LogoutAllResponse {}
+
+message ListSessionsRequest {}
+
+message ListSessionsResponse {
+  repeated Session sessions = 1;
+}
+
+message Session {
+  string id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  google.protobuf.Timestamp revoked_at = 4;
+  string ip = 5;
+  string user_agent = 6;
+}
